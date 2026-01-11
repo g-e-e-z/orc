@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orc-postgres
+    environment:
+      POSTGRES_USER: orc_user
+      POSTGRES_PASSWORD: orc_password
+      POSTGRES_DB: orc_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orc_user -d orc_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orc-network
+
+  orc-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: orc-server
+    environment:
+      DATABASE_URL: postgres://orc_user:orc_password@postgres:5432/orc_db?sslmode=disable
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: orc_user
+      DB_PASSWORD: orc_password
+      DB_NAME: orc_db
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - orc-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  orc-network:
+    driver: bridge
